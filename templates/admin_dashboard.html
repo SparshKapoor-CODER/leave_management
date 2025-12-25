@@ -530,7 +530,8 @@
         showLoading(`Generating ${reportNames[parseInt(reportType)-1]} PDF report...`);
         
         // Open PDF in new tab for download
-        window.open(`/admin/generate-pdf/${selectedReport}`, '_blank');
+        window.open(`/admin/generate-pdf/${selectedReport}`, '_blank');   // there is a bug here that needs to be fixed
+        // this link works but the tab is not opened or even if it is opend so no pdf is downloaded and we get a message "PDF report generated successfully! Check your downloads."
         
         // Close loading after delay
         setTimeout(() => {
