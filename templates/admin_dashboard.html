@@ -506,7 +506,7 @@
         }
     }
 
-    function generateReports() {
+function generateReports() {
     const reportType = prompt('Select report type:\n1. Monthly Summary\n2. User Activity\n3. Leave Statistics\n4. Suspicious Activity\n\nEnter number (1-4):');
     
     if (!reportType || reportType < 1 || reportType > 4) return;
@@ -529,15 +529,36 @@
     if (confirm(`Generate ${reportNames[parseInt(reportType)-1]} report as PDF?`)) {
         showLoading(`Generating ${reportNames[parseInt(reportType)-1]} PDF report...`);
         
-        // Open PDF in new tab for download
-        window.open(`/admin/generate-pdf/${selectedReport}`, '_blank');   // there is a bug here that needs to be fixed
-        // this link works but the tab is not opened or even if it is opend so no pdf is downloaded and we get a message "PDF report generated successfully! Check your downloads."
-        
-        // Close loading after delay
-        setTimeout(() => {
-            hideLoading();
-            showNotification(`PDF report generated successfully! Check your downloads.`, 'success');
-        }, 2000);
+        // Use fetch API to download the file
+        fetch(`/admin/generate-pdf/${selectedReport}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.blob();
+            })
+            .then(blob => {
+                // Create a download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = `vit_report_${selectedReport}_${new Date().toISOString().slice(0,10)}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                
+                // Clean up
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                hideLoading();
+                showNotification(`PDF report downloaded successfully!`, 'success');
+            })
+            .catch(error => {
+                hideLoading();
+                showNotification(`Failed to generate PDF: ${error.message}`, 'error');
+                console.error('Error:', error);
+            });
     }
 }
 
