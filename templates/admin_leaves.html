@@ -545,6 +545,7 @@
 </div>
 
 <script>
+    // Global variables
     let currentLeaveId = null;
     let deleteLeaveId = null;
     
@@ -1165,132 +1166,6 @@
     }
     
     // Export leaves function
-
-    // Export leaves function
-async function exportLeaves() {
-    const exportBtn = document.querySelector('.btn-vit[onclick="exportLeaves()"]');
-    const originalText = exportBtn.innerHTML;
-    exportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Exporting...';
-    exportBtn.disabled = true;
-    
-    // Show progress modal
-    const progressModal = new bootstrap.Modal(document.getElementById('exportProgressModal'));
-    progressModal.show();
-    
-    try {
-        // Get current filter values
-        const form = document.querySelector('form[method="GET"]');
-        const formData = new FormData(form);
-        const params = new URLSearchParams();
-        
-        // Add all filter parameters
-        for (const [key, value] of formData.entries()) {
-            if (value) params.append(key, value);
-        }
-        
-        // Update progress
-        document.getElementById('exportStatus').textContent = 'Preparing data...';
-        document.getElementById('exportProgressBar').style.width = '25%';
-        
-        // Request export
-        const response = await fetch(`/admin/export/leaves?${params.toString()}`);
-        
-        if (response.status === 500) {
-            // If server error, try a simpler export
-            await simpleExport();
-            return;
-        }
-        
-        if (!response.ok) {
-            throw new Error(`Export failed with status: ${response.status}`);
-        }
-        
-        // Update progress
-        document.getElementById('exportStatus').textContent = 'Generating file...';
-        document.getElementById('exportProgressBar').style.width = '75%';
-        
-        // Get filename from Content-Disposition header or use default
-        const contentDisposition = response.headers.get('Content-Disposition');
-        let filename = `leaves_export_${new Date().toISOString().split('T')[0]}.csv`;
-        
-        if (contentDisposition) {
-            const match = contentDisposition.match(/filename="?(.+)"?/);
-            if (match) filename = match[1];
-        }
-        
-        // Update progress
-        document.getElementById('exportStatus').textContent = 'Finalizing...';
-        document.getElementById('exportProgressBar').style.width = '100%';
-        
-        // Create download link
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-        
-        // Hide progress modal
-        progressModal.hide();
-        
-        showAlert('Export completed successfully!', 'success');
-        
-    } catch (error) {
-        console.error('Export error:', error);
-        progressModal.hide();
-        
-        // Try simple export as fallback
-        try {
-            await simpleExport();
-        } catch (fallbackError) {
-            showAlert(`Export failed: ${error.message}. Fallback also failed.`, 'danger');
-        }
-    } finally {
-        exportBtn.innerHTML = originalText;
-        exportBtn.disabled = false;
-    }
-}
-
-// Simple export fallback
-async function simpleExport() {
-    // Simple manual CSV generation as fallback
-    const rows = document.querySelectorAll('table tbody tr');
-    let csvContent = "Leave ID,Student Name,Reg Number,Leave Type,From Date,To Date,Status,Proctor,Applied At\n";
-    
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 8) {
-            const rowData = [
-                cells[0].textContent.trim().replace('Flagged', '').trim(),
-                cells[1].textContent.trim().split('\n')[0],
-                cells[1].querySelector('small')?.textContent.trim() || '',
-                cells[2].textContent.trim(),
-                cells[3].textContent.trim().split('\n')[0],
-                cells[3].textContent.trim().split('\n')[0].split('to')[1]?.trim() || '',
-                cells[5].textContent.trim(),
-                cells[6].textContent.trim(),
-                cells[7].textContent.trim()
-            ];
-            csvContent += rowData.map(cell => `"${cell}"`).join(',') + '\n';
-        }
-    });
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `simple_leaves_export_${new Date().toISOString().split('T')[0]}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
-    
-    showAlert('Simple export completed! Some columns may be missing.', 'warning');
-}
-
     async function exportLeaves() {
         const exportBtn = document.querySelector('.btn-vit[onclick="exportLeaves()"]');
         const originalText = exportBtn.innerHTML;
@@ -1319,8 +1194,14 @@ async function simpleExport() {
             // Request export
             const response = await fetch(`/admin/export/leaves?${params.toString()}`);
             
+            if (response.status === 500) {
+                // If server error, try a simpler export
+                await simpleExport();
+                return;
+            }
+            
             if (!response.ok) {
-                throw new Error('Export failed');
+                throw new Error(`Export failed with status: ${response.status}`);
             }
             
             // Update progress
@@ -1354,24 +1235,60 @@ async function simpleExport() {
             // Hide progress modal
             progressModal.hide();
             
-            // Update count if available
-            const count = await response.headers.get('X-Total-Count');
-            if (count) {
-                document.getElementById('exportCount').textContent = `Exported ${count} records`;
-            }
-            
             showAlert('Export completed successfully!', 'success');
             
         } catch (error) {
             console.error('Export error:', error);
             progressModal.hide();
-            showAlert(`Export failed: ${error.message}`, 'danger');
+            
+            // Try simple export as fallback
+            try {
+                await simpleExport();
+            } catch (fallbackError) {
+                showAlert(`Export failed: ${error.message}. Fallback also failed.`, 'danger');
+            }
         } finally {
             exportBtn.innerHTML = originalText;
             exportBtn.disabled = false;
         }
     }
->>>>>>> 6d065b5aa7aa103defa59ffa028e9d3d6c645949
+    
+    // Simple export fallback
+    async function simpleExport() {
+        // Simple manual CSV generation as fallback
+        const rows = document.querySelectorAll('table tbody tr');
+        let csvContent = "Leave ID,Student Name,Reg Number,Leave Type,From Date,To Date,Status,Proctor,Applied At\n";
+        
+        rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length >= 8) {
+                const rowData = [
+                    cells[0].textContent.trim().replace('Flagged', '').trim(),
+                    cells[1].textContent.trim().split('\n')[0],
+                    cells[1].querySelector('small')?.textContent.trim() || '',
+                    cells[2].textContent.trim(),
+                    cells[3].textContent.trim().split('\n')[0],
+                    cells[3].textContent.trim().split('\n')[0].split('to')[1]?.trim() || '',
+                    cells[5].textContent.trim(),
+                    cells[6].textContent.trim(),
+                    cells[7].textContent.trim()
+                ];
+                csvContent += rowData.map(cell => `"${cell}"`).join(',') + '\n';
+            }
+        });
+        
+        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `simple_leaves_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showAlert('Simple export completed! Some columns may be missing.', 'warning');
+    }
     
     // Helper function to show alerts
     function showAlert(message, type = 'info') {
