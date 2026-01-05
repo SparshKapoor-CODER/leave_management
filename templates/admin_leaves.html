@@ -56,6 +56,150 @@
     .action-dropdown .dropdown-menu {
         min-width: 200px;
     }
+    
+    /* Custom styles for new features */
+    .export-alert {
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideInRight 0.3s ease;
+    }
+    
+    @keyframes slideInRight {
+        from {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .leave-details-container .card {
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+    }
+    
+    .leave-details-container .card-header {
+        border-bottom: 2px solid var(--vit-blue);
+        font-weight: 600;
+    }
+    
+    .leave-details-container table {
+        font-size: 0.9rem;
+    }
+    
+    .leave-details-container table th {
+        background-color: #f8f9fa;
+        font-weight: 600;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .leave-details-container .badge {
+        font-size: 0.75em;
+        padding: 0.35em 0.65em;
+    }
+    
+    .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+    }
+    
+    .status-indicator.pending { background-color: #ffc107; }
+    .status-indicator.approved { background-color: #28a745; }
+    .status-indicator.rejected { background-color: #dc3545; }
+    .status-indicator.completed { background-color: #17a2b8; }
+    
+    .timeline {
+        position: relative;
+        padding-left: 30px;
+    }
+    
+    .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: #e9ecef;
+    }
+    
+    .timeline-item {
+        position: relative;
+        margin-bottom: 20px;
+    }
+    
+    .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -30px;
+        top: 5px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--vit-blue);
+        border: 2px solid white;
+        box-shadow: 0 0 0 2px var(--vit-blue);
+    }
+    
+    .qr-preview {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #dee2e6;
+        text-align: center;
+        max-width: 200px;
+        margin: 0 auto;
+    }
+    
+    .qr-preview img {
+        max-width: 150px;
+        height: auto;
+    }
+    
+    .export-progress {
+        height: 4px;
+        background: #e9ecef;
+        border-radius: 2px;
+        overflow: hidden;
+        margin-top: 10px;
+    }
+    
+    .export-progress-bar {
+        height: 100%;
+        background: linear-gradient(90deg, var(--vit-blue) 0%, var(--vit-orange) 100%);
+        width: 0%;
+        transition: width 0.3s ease;
+    }
+    
+    /* Print styles */
+    @media print {
+        .no-print, .modal-footer, .modal-header .btn-close,
+        .filter-card, .d-flex.justify-content-between, nav.pagination {
+            display: none !important;
+        }
+        
+        .modal-dialog {
+            max-width: 100% !important;
+            margin: 0 !important;
+        }
+        
+        .modal-content {
+            border: none !important;
+            box-shadow: none !important;
+        }
+        
+        body {
+            background: white !important;
+        }
+        
+        .card {
+            border: 1px solid #000 !important;
+        }
+    }
 </style>
 {% endblock %}
 
@@ -309,9 +453,135 @@
     </div>
 </div>
 
+<!-- Leave Details Modal -->
+<div class="modal fade" id="leaveDetailsModal" tabindex="-1" aria-labelledby="leaveDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="leaveDetailsModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Leave Application Details
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="leaveDetailsContent">
+                    <!-- Content will be loaded here -->
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3">Loading leave details...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" onclick="printLeaveDetails()">
+                    <i class="fas fa-print me-2"></i>Print
+                </button>
+                <button type="button" class="btn btn-success" onclick="generateLeaveReport()">
+                    <i class="fas fa-file-pdf me-2"></i>Export PDF
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>Confirm Delete
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Warning:</strong> This action cannot be undone!
+                </div>
+                <p>Are you sure you want to delete leave <strong id="deleteLeaveId"></strong>?</p>
+                <p class="text-muted">This will permanently remove the leave application and all associated data.</p>
+                <div class="alert alert-warning mt-3">
+                    <small>
+                        <i class="fas fa-info-circle me-1"></i>
+                        Note: Only pending and rejected leaves can be deleted. Approved or completed leaves cannot be deleted.
+                    </small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteLeave()">
+                    <i class="fas fa-trash me-2"></i>Delete Leave
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Progress Modal -->
+<div class="modal fade" id="exportProgressModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header bg-vit text-white">
+                <h6 class="modal-title">
+                    <i class="fas fa-file-export me-2"></i>Exporting Leaves
+                </h6>
+            </div>
+            <div class="modal-body text-center">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p id="exportStatus">Preparing data for export...</p>
+                <div class="export-progress">
+                    <div class="export-progress-bar" id="exportProgressBar"></div>
+                </div>
+                <small class="text-muted" id="exportCount">Processing 0 records...</small>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     let currentLeaveId = null;
+    let deleteLeaveId = null;
     
+    // Format date for display
+    function formatDateTime(dateString) {
+        if (!dateString || dateString === 'None') return 'N/A';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (e) {
+            return dateString;
+        }
+    }
+    
+    // Format time
+    function formatTime(timeString) {
+        if (!timeString || timeString === 'None') return 'N/A';
+        if (timeString.includes(':')) {
+            const parts = timeString.split(':');
+            return `${parts[0]}:${parts[1]}`;
+        }
+        return timeString;
+    }
+    
+    // Format duration
+    function formatDuration(days) {
+        if (days === 1) return '1 day';
+        return `${days} days`;
+    }
+    
+    // Flag suspicious leave
     function flagSuspicious(leaveId) {
         currentLeaveId = leaveId;
         const flagForm = document.getElementById('flagForm');
@@ -320,22 +590,711 @@
         flagModal.show();
     }
     
-    function viewLeaveDetails(leaveId) {
-        alert(`View details for leave #${leaveId}\nFeature coming soon!`);
-        // In production, this would open a modal with detailed information
-    }
-    
-    function deleteLeave(leaveId) {
-        if (confirm(`Are you sure you want to delete leave #${leaveId}? This action cannot be undone.`)) {
-            alert(`Delete leave #${leaveId}\nFeature coming soon!`);
-            // In production, this would make an API call
+    // View leave details
+    async function viewLeaveDetails(leaveId) {
+        currentLeaveId = leaveId;
+        const modal = new bootstrap.Modal(document.getElementById('leaveDetailsModal'));
+        
+        // Show loading state
+        document.getElementById('leaveDetailsContent').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Loading leave details...</p>
+            </div>
+        `;
+        
+        modal.show();
+        
+        try {
+            // Fetch leave details
+            const response = await fetch(`/admin/leave-details/${leaveId}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            // Format and display the data
+            renderLeaveDetails(data);
+        } catch (error) {
+            console.error('Error loading leave details:', error);
+            document.getElementById('leaveDetailsContent').innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    Error loading leave details: ${error.message}
+                </div>
+                <div class="text-center py-3">
+                    <button class="btn btn-primary" onclick="viewLeaveDetails(${leaveId})">
+                        <i class="fas fa-redo me-2"></i>Retry
+                    </button>
+                </div>
+            `;
         }
     }
     
-    function exportLeaves() {
-        alert('Exporting leaves data... This may take a moment.');
-        // In production, this would trigger a CSV/Excel export
+    // Render leave details in modal
+    function renderLeaveDetails(data) {
+        const content = document.getElementById('leaveDetailsContent');
+        
+        // Status badge color
+        const statusColor = {
+            'pending': 'warning',
+            'approved': 'success',
+            'rejected': 'danger',
+            'completed': 'info'
+        }[data.leave_details.status] || 'secondary';
+        
+        // Calculate duration
+        const durationDays = data.leave_details.duration_days || 1;
+        
+        // Format times
+        const fromTime = formatTime(data.leave_details.from_time);
+        const toTime = formatTime(data.leave_details.to_time);
+        
+        let html = `
+            <div class="leave-details-container">
+                <!-- Header -->
+                <div class="row mb-4">
+                    <div class="col-md-8">
+                        <h4 class="mb-2">Leave Application #${data.leave_id}</h4>
+                        <div class="d-flex gap-2 align-items-center">
+                            <span class="badge bg-${statusColor} fs-6">
+                                ${data.leave_details.status.toUpperCase()}
+                            </span>
+                            ${data.suspicious_flag && data.suspicious_flag.is_flagged ? 
+                                '<span class="badge bg-danger fs-6"><i class="fas fa-flag"></i> FLAGGED</span>' : 
+                                ''}
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-md-end">
+                        <p class="mb-1"><strong>Applied:</strong> ${formatDateTime(data.leave_details.applied_at)}</p>
+                        <p class="mb-0"><strong>Last Updated:</strong> ${formatDateTime(data.audit_logs && data.audit_logs.length > 0 ? data.audit_logs[0].timestamp : data.leave_details.applied_at)}</p>
+                    </div>
+                </div>
+                
+                <!-- Quick Stats -->
+                <div class="row mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body py-3">
+                                <h5 class="mb-1">${durationDays}</h5>
+                                <p class="text-muted mb-0">Days</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body py-3">
+                                <h5 class="mb-1">${data.audit_logs ? data.audit_logs.length : 0}</h5>
+                                <p class="text-muted mb-0">Activities</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body py-3">
+                                <h5 class="mb-1">${data.verification_logs ? data.verification_logs.length : 0}</h5>
+                                <p class="text-muted mb-0">Verifications</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body py-3">
+                                <h5 class="mb-1">${data.leave_details.parent_contacted ? 'Yes' : 'No'}</h5>
+                                <p class="text-muted mb-0">Parent Contacted</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Student Information -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-user-graduate me-2"></i>Student Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Name:</strong></td>
+                                        <td>${data.student.name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Registration:</strong></td>
+                                        <td>${data.student.reg_number}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Phone:</strong></td>
+                                        <td>${data.student.phone || 'N/A'}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Hostel:</strong></td>
+                                        <td>Block ${data.student.hostel_block}, Room ${data.student.room_number}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Parent Phone:</strong></td>
+                                        <td>${data.student.parent_phone || 'N/A'}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Leave Details -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Leave Details</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Type:</strong></td>
+                                        <td>
+                                            <span class="badge bg-${data.leave_details.type === 'emergency' ? 'danger' : data.leave_details.type === 'medical' ? 'info' : 'primary'}">
+                                                ${data.leave_details.type.toUpperCase()}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Duration:</strong></td>
+                                        <td>${formatDuration(durationDays)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Dates:</strong></td>
+                                        <td>${data.leave_details.from_date} to ${data.leave_details.to_date}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Time:</strong></td>
+                                        <td>${fromTime} - ${toTime}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Destination:</strong></td>
+                                        <td>${data.leave_details.destination || 'Not specified'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Parent Contacted:</strong></td>
+                                        <td>
+                                            <span class="badge bg-${data.leave_details.parent_contacted ? 'success' : 'secondary'}">
+                                                ${data.leave_details.parent_contacted ? 'Yes' : 'No'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    ${data.parent_contact ? `
+                                    <tr>
+                                        <td><strong>Contact Method:</strong></td>
+                                        <td>${data.parent_contact.method || 'Phone'}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Contact Time:</strong></td>
+                                        <td>${formatDateTime(data.parent_contact.contact_time)}</td>
+                                    </tr>
+                                    ` : ''}
+                                </table>
+                            </div>
+                        </div>
+                        <div>
+                            <p class="mb-2"><strong>Reason:</strong></p>
+                            <div class="border rounded p-3 bg-light">
+                                ${data.leave_details.reason || '<em class="text-muted">No reason provided</em>'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Proctor Information -->
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-user-tie me-2"></i>Proctor Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Name:</strong></td>
+                                        <td>${data.proctor.name}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Employee ID:</strong></td>
+                                        <td>${data.proctor.employee_id}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Department:</strong></td>
+                                        <td>${data.proctor.department}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Email:</strong></td>
+                                        <td>${data.proctor.email}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+        `;
+        
+        // Suspicious Flag Section
+        if (data.suspicious_flag && data.suspicious_flag.is_flagged) {
+            html += `
+                <div class="card mb-4 border-danger">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="mb-0"><i class="fas fa-flag me-2"></i>Suspicious Flag</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Flagged By:</strong> ${data.suspicious_flag.flagged_by || 'Unknown'}</p>
+                                <p><strong>Flagged At:</strong> ${formatDateTime(data.suspicious_flag.flagged_at)}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Reason:</strong></p>
+                                <div class="border rounded p-3 bg-danger bg-opacity-10">
+                                    ${data.suspicious_flag.reason || 'No reason provided'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // QR Code Information
+        if (data.qr_code && data.qr_code.token) {
+            html += `
+                <div class="card mb-4">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="fas fa-qrcode me-2"></i>QR Code Information</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row align-items-center">
+                            <div class="col-md-4 text-center">
+                                <div class="qr-preview">
+                                    <div class="mb-2">
+                                        <i class="fas fa-qrcode fa-3x text-primary"></i>
+                                    </div>
+                                    <code class="text-muted">${data.qr_code.token.substring(0, 8)}...</code>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <table class="table table-sm table-borderless">
+                                    <tr>
+                                        <td width="40%"><strong>Token:</strong></td>
+                                        <td><code class="text-muted">${data.qr_code.token}</code></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Generated At:</strong></td>
+                                        <td>${formatDateTime(data.qr_code.generated_at)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Expires At:</strong></td>
+                                        <td>${formatDateTime(data.qr_code.expires_at)}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Verified At:</strong></td>
+                                        <td>${formatDateTime(data.qr_code.verified_at) || 'Not verified'}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Activity Timeline
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-light">
+                    <h6 class="mb-0"><i class="fas fa-history me-2"></i>Activity Timeline</h6>
+                </div>
+                <div class="card-body">
+        `;
+        
+        if (data.audit_logs && data.audit_logs.length > 0) {
+            html += `<div class="timeline">`;
+            
+            data.audit_logs.forEach((log, index) => {
+                const badgeColor = {
+                    'APPROVE': 'success',
+                    'REJECT': 'danger',
+                    'CREATE': 'primary',
+                    'UPDATE': 'info',
+                    'VERIFY': 'success',
+                    'FLAG': 'warning',
+                    'DELETE': 'danger'
+                }[log.action] || 'secondary';
+                
+                html += `
+                    <div class="timeline-item">
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <span class="badge bg-${badgeColor}">${log.action}</span>
+                                <span class="ms-2">${log.performed_by} (${log.performed_by_type})</span>
+                            </div>
+                            <small class="text-muted">${formatDateTime(log.timestamp)}</small>
+                        </div>
+                        ${log.notes ? `<p class="mb-0 mt-1 small text-muted">${log.notes}</p>` : ''}
+                    </div>
+                `;
+            });
+            
+            html += `</div>`;
+        } else {
+            html += `
+                <div class="text-center py-4">
+                    <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                    <p class="text-muted">No activity logs found</p>
+                </div>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        </div>
+        `;
+        
+        content.innerHTML = html;
     }
+    
+    // Print leave details
+    function printLeaveDetails() {
+        const printContent = document.querySelector('.leave-details-container').innerHTML;
+        const printWindow = window.open('', '_blank');
+        
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Leave Details #${currentLeaveId} - VIT LMS</title>
+                <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+                <style>
+                    body { 
+                        padding: 20px;
+                        font-family: Arial, sans-serif;
+                    }
+                    .badge { 
+                        font-size: 0.8em;
+                        padding: 0.4em 0.7em;
+                    }
+                    .card {
+                        margin-bottom: 20px;
+                        border: 1px solid #ddd;
+                        page-break-inside: avoid;
+                    }
+                    .card-header {
+                        background-color: #f8f9fa;
+                        font-weight: bold;
+                    }
+                    table {
+                        width: 100%;
+                        margin-bottom: 10px;
+                    }
+                    table td {
+                        padding: 5px 0;
+                    }
+                    .timeline {
+                        padding-left: 20px;
+                        border-left: 2px solid #007bff;
+                        margin-left: 10px;
+                    }
+                    .timeline-item {
+                        margin-bottom: 15px;
+                        position: relative;
+                    }
+                    .timeline-item::before {
+                        content: '';
+                        position: absolute;
+                        left: -24px;
+                        top: 5px;
+                        width: 10px;
+                        height: 10px;
+                        border-radius: 50%;
+                        background: #007bff;
+                    }
+                    .no-print { display: none !important; }
+                    @page {
+                        size: A4 portrait;
+                        margin: 20mm;
+                    }
+                    @media print {
+                        body { font-size: 11pt; }
+                        h4 { font-size: 16pt; }
+                        h6 { font-size: 12pt; }
+                        .card { border: 1px solid #000 !important; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="text-center mb-4 border-bottom pb-3">
+                        <h4 class="mb-1">VIT Leave Management System</h4>
+                        <h5>Leave Application Details</h5>
+                        <p class="text-muted mb-0">Generated: ${new Date().toLocaleString('en-IN')}</p>
+                        <p class="text-muted">Leave ID: #${currentLeaveId}</p>
+                    </div>
+                    ${printContent}
+                    <div class="mt-4 pt-3 border-top text-center text-muted">
+                        <small>Confidential Document - VIT Bhopal - For Official Use Only</small>
+                        <br>
+                        <small>Generated by: ${sessionStorage.getItem('admin_name') || 'Administrator'}</small>
+                    </div>
+                </div>
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        setTimeout(function() {
+                            window.close();
+                        }, 500);
+                    }
+                <\/script>
+            </body>
+            </html>
+        `);
+        
+        printWindow.document.close();
+    }
+    
+    // Generate PDF report
+    async function generateLeaveReport() {
+        try {
+            const response = await fetch(`/admin/generate-pdf/leave_statistics?leave_id=${currentLeaveId}`);
+            
+            if (response.ok) {
+                // Trigger download
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `leave_${currentLeaveId}_${new Date().toISOString().split('T')[0]}.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+                
+                showAlert('PDF report generated successfully!', 'success');
+            } else {
+                throw new Error('Failed to generate PDF');
+            }
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            showAlert(`Failed to generate PDF: ${error.message}`, 'danger');
+        }
+    }
+    
+    // Delete leave function
+    function deleteLeave(leaveId) {
+        deleteLeaveId = leaveId;
+        document.getElementById('deleteLeaveId').textContent = `#${leaveId}`;
+        const modal = new bootstrap.Modal(document.getElementById('deleteConfirmModal'));
+        modal.show();
+    }
+    
+    // Confirm and delete leave
+    async function confirmDeleteLeave() {
+        if (!deleteLeaveId) return;
+        
+        const deleteBtn = document.querySelector('#deleteConfirmModal .btn-danger');
+        const originalText = deleteBtn.innerHTML;
+        deleteBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Deleting...';
+        deleteBtn.disabled = true;
+        
+        try {
+            const response = await fetch(`/admin/delete-leave/${deleteLeaveId}`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show success message
+                const modal = bootstrap.Modal.getInstance(document.getElementById('deleteConfirmModal'));
+                modal.hide();
+                
+                // Show success alert
+                showAlert('Leave deleted successfully!', 'success');
+                
+                // Remove the row from the table
+                const rows = document.querySelectorAll('tr.leave-row');
+                for (let row of rows) {
+                    const idElement = row.querySelector('td strong');
+                    if (idElement && idElement.textContent.includes(`#${deleteLeaveId}`)) {
+                        row.style.transition = 'all 0.3s ease';
+                        row.style.opacity = '0';
+                        row.style.transform = 'translateX(100px)';
+                        setTimeout(() => row.remove(), 300);
+                        break;
+                    }
+                }
+                
+                // Update total count
+                updateTotalCount(-1);
+                
+            } else {
+                throw new Error(data.error || data.message || 'Failed to delete leave');
+            }
+        } catch (error) {
+            showAlert(`Error: ${error.message}`, 'danger');
+        } finally {
+            deleteBtn.innerHTML = originalText;
+            deleteBtn.disabled = false;
+        }
+    }
+    
+    // Export leaves function
+    async function exportLeaves() {
+        const exportBtn = document.querySelector('.btn-vit[onclick="exportLeaves()"]');
+        const originalText = exportBtn.innerHTML;
+        exportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Exporting...';
+        exportBtn.disabled = true;
+        
+        // Show progress modal
+        const progressModal = new bootstrap.Modal(document.getElementById('exportProgressModal'));
+        progressModal.show();
+        
+        try {
+            // Get current filter values
+            const form = document.querySelector('form[method="GET"]');
+            const formData = new FormData(form);
+            const params = new URLSearchParams();
+            
+            // Add all filter parameters
+            for (const [key, value] of formData.entries()) {
+                if (value) params.append(key, value);
+            }
+            
+            // Update progress
+            document.getElementById('exportStatus').textContent = 'Preparing data...';
+            document.getElementById('exportProgressBar').style.width = '25%';
+            
+            // Request export
+            const response = await fetch(`/admin/export/leaves?${params.toString()}`);
+            
+            if (!response.ok) {
+                throw new Error('Export failed');
+            }
+            
+            // Update progress
+            document.getElementById('exportStatus').textContent = 'Generating file...';
+            document.getElementById('exportProgressBar').style.width = '75%';
+            
+            // Get filename from Content-Disposition header or use default
+            const contentDisposition = response.headers.get('Content-Disposition');
+            let filename = `leaves_export_${new Date().toISOString().split('T')[0]}.csv`;
+            
+            if (contentDisposition) {
+                const match = contentDisposition.match(/filename="?(.+)"?/);
+                if (match) filename = match[1];
+            }
+            
+            // Update progress
+            document.getElementById('exportStatus').textContent = 'Finalizing...';
+            document.getElementById('exportProgressBar').style.width = '100%';
+            
+            // Create download link
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            // Hide progress modal
+            progressModal.hide();
+            
+            // Update count if available
+            const count = await response.headers.get('X-Total-Count');
+            if (count) {
+                document.getElementById('exportCount').textContent = `Exported ${count} records`;
+            }
+            
+            showAlert('Export completed successfully!', 'success');
+            
+        } catch (error) {
+            console.error('Export error:', error);
+            progressModal.hide();
+            showAlert(`Export failed: ${error.message}`, 'danger');
+        } finally {
+            exportBtn.innerHTML = originalText;
+            exportBtn.disabled = false;
+        }
+    }
+    
+    // Helper function to show alerts
+    function showAlert(message, type = 'info') {
+        // Remove existing alerts
+        const existingAlert = document.querySelector('.export-alert');
+        if (existingAlert) existingAlert.remove();
+        
+        // Create new alert
+        const alertDiv = document.createElement('div');
+        alertDiv.className = `alert alert-${type} alert-dismissible fade show export-alert position-fixed`;
+        alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 1050; max-width: 400px;';
+        alertDiv.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'danger' ? 'exclamation-circle' : 'info-circle'} me-2"></i>
+                <div>${message}</div>
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+        
+        document.body.appendChild(alertDiv);
+        
+        // Auto-remove after 5 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 5000);
+    }
+    
+    // Helper function to update total count
+    function updateTotalCount(change) {
+        const totalElement = document.querySelector('p.text-muted.mb-0');
+        if (totalElement) {
+            const match = totalElement.textContent.match(/Total: (\d+) applications/);
+            if (match) {
+                const currentTotal = parseInt(match[1]);
+                const newTotal = Math.max(0, currentTotal + change);
+                totalElement.textContent = `Total: ${newTotal} applications`;
+            }
+        }
+    }
+    
+    // Initialize tooltips
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize Bootstrap tooltips
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    });
     
     // Auto-refresh every 30 seconds if on first page
     if (window.location.search.includes('page=1') || !window.location.search.includes('page=')) {
