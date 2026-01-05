@@ -1279,6 +1279,330 @@ def export_logs_csv():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+
+@app.route('/admin/leave-details/<int:leave_id>')
+@admin_required
+def admin_leave_details(leave_id):
+    """Get detailed information about a specific leave"""
+    try:
+        db = Database()
+        connection = db.get_connection()
+        
+        with connection.cursor() as cursor:
+            # Get detailed leave information
+            cursor.execute("""
+                SELECT 
+                    l.*,
+                    s.name as student_name,
+                    s.reg_number,
+                    s.hostel_block,
+                    s.room_number,
+                    s.phone,
+                    s.parent_phone,
+                    p.name as proctor_name,
+                    p.employee_id as proctor_id,
+                    p.email as proctor_email,
+                    p.department as proctor_dept,
+                    hs.name as supervisor_name,
+                    hs.supervisor_id,
+                    hs.hostel_block as supervisor_block,
+                    al.admin_id as flagged_by_admin,
+                    al.name as flagged_by_name,
+                    al.reason as flag_reason,
+                    al.created_at as flagged_at
+                FROM leaves l
+                JOIN students s ON l.student_reg = s.reg_number
+                JOIN proctors p ON l.proctor_id = p.employee_id
+                LEFT JOIN hostel_supervisors hs ON s.hostel_block = hs.hostel_block
+                LEFT JOIN admin_leave_flags alf ON l.leave_id = alf.leave_id
+                LEFT JOIN admins al ON alf.flagged_by = al.admin_id
+                WHERE l.leave_id = %s
+            """, (leave_id,))
+            
+            leave = cursor.fetchone()
+            
+            if not leave:
+                return jsonify({'error': 'Leave not found'}), 404
+            
+            # Get approval/verification history
+            cursor.execute("""
+                SELECT 
+                    action,
+                    performed_by,
+                    performed_by_type,
+                    timestamp,
+                    notes
+                FROM leave_audit_log
+                WHERE leave_id = %s
+                ORDER BY timestamp DESC
+            """, (leave_id,))
+            
+            audit_logs = cursor.fetchall()
+            
+            # Get parent contact information
+            parent_contacted = leave.get('parent_contacted', False)
+            if parent_contacted:
+                cursor.execute("""
+                    SELECT 
+                        contact_time,
+                        method,
+                        confirmation_code,
+                        notes
+                    FROM parent_contacts
+                    WHERE leave_id = %s
+                """, (leave_id,))
+                
+                parent_contact = cursor.fetchone()
+            else:
+                parent_contact = None
+            
+            # Get QR verification history
+            cursor.execute("""
+                SELECT 
+                    vl.*,
+                    hs.name as supervisor_name
+                FROM verification_logs vl
+                LEFT JOIN hostel_supervisors hs ON vl.supervisor_id = hs.supervisor_id
+                WHERE vl.leave_id = %s
+                ORDER BY timestamp DESC
+            """, (leave_id,))
+            
+            verification_logs = cursor.fetchall()
+            
+            # Format the response
+            response = {
+                'leave_id': leave['leave_id'],
+                'student': {
+                    'name': leave['student_name'],
+                    'reg_number': leave['reg_number'],
+                    'hostel_block': leave['hostel_block'],
+                    'room_number': leave['room_number'],
+                    'phone': leave['phone'],
+                    'parent_phone': leave['parent_phone']
+                },
+                'leave_details': {
+                    'type': leave['leave_type'],
+                    'from_date': str(leave['from_date']),
+                    'to_date': str(leave['to_date']),
+                    'from_time': str(leave['from_time']),
+                    'to_time': str(leave['to_time']),
+                    'duration_days': (leave['to_date'] - leave['from_date']).days + 1,
+                    'reason': leave['reason'],
+                    'destination': leave['destination'],
+                    'parent_contacted': parent_contacted,
+                    'status': leave['status'],
+                    'applied_at': str(leave['applied_at'])
+                },
+                'proctor': {
+                    'name': leave['proctor_name'],
+                    'employee_id': leave['proctor_id'],
+                    'email': leave['proctor_email'],
+                    'department': leave['proctor_dept']
+                },
+                'hostel_supervisor': {
+                    'name': leave['supervisor_name'] if leave['supervisor_name'] else 'Not Assigned',
+                    'supervisor_id': leave['supervisor_id'],
+                    'hostel_block': leave['supervisor_block']
+                },
+                'suspicious_flag': {
+                    'is_flagged': leave['suspicious_flag'],
+                    'flagged_by': leave['flagged_by_name'] if leave['flagged_by_name'] else None,
+                    'reason': leave['flag_reason'],
+                    'flagged_at': str(leave['flagged_at']) if leave['flagged_at'] else None
+                },
+                'audit_logs': [
+                    {
+                        'action': log['action'],
+                        'performed_by': log['performed_by'],
+                        'performed_by_type': log['performed_by_type'],
+                        'timestamp': str(log['timestamp']),
+                        'notes': log['notes']
+                    }
+                    for log in audit_logs
+                ],
+                'parent_contact': parent_contact,
+                'verification_logs': [
+                    {
+                        'action': log['action'],
+                        'supervisor': log['supervisor_name'] or log['supervisor_id'],
+                        'timestamp': str(log['timestamp']),
+                        'notes': log['notes']
+                    }
+                    for log in verification_logs
+                ],
+                'qr_code': {
+                    'token': leave['qr_token'],
+                    'generated_at': str(leave['qr_generated_at']) if leave['qr_generated_at'] else None,
+                    'expires_at': str(leave['qr_expiry']) if leave['qr_expiry'] else None,
+                    'verified_at': str(leave['verified_at']) if leave['verified_at'] else None
+                }
+            }
+            
+            return jsonify(response)
+            
+    except Exception as e:
+        print(f"Error fetching leave details: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        connection.close()
+
+@app.route('/admin/delete-leave/<int:leave_id>', methods=['DELETE', 'POST'])
+@admin_required
+def admin_delete_leave(leave_id):
+    """Delete a leave application (admin only)"""
+    try:
+        db = Database()
+        connection = db.get_connection()
+        
+        with connection.cursor() as cursor:
+            # First, get leave details for logging
+            cursor.execute("""
+                SELECT l.*, s.name as student_name, s.reg_number 
+                FROM leaves l
+                JOIN students s ON l.student_reg = s.reg_number
+                WHERE l.leave_id = %s
+            """, (leave_id,))
+            
+            leave = cursor.fetchone()
+            
+            if not leave:
+                return jsonify({'error': 'Leave not found'}), 404
+            
+            # Check if leave can be deleted (only pending or rejected leaves)
+            if leave['status'] not in ['pending', 'rejected']:
+                return jsonify({
+                    'error': 'Cannot delete approved or completed leaves',
+                    'status': leave['status']
+                }), 400
+            
+            # Delete related records first
+            # 1. Delete from admin_leave_flags
+            cursor.execute("DELETE FROM admin_leave_flags WHERE leave_id = %s", (leave_id,))
+            
+            # 2. Delete from verification_logs
+            cursor.execute("DELETE FROM verification_logs WHERE leave_id = %s", (leave_id,))
+            
+            # 3. Delete from parent_contacts
+            cursor.execute("DELETE FROM parent_contacts WHERE leave_id = %s", (leave_id,))
+            
+            # 4. Delete from leave_audit_log
+            cursor.execute("DELETE FROM leave_audit_log WHERE leave_id = %s", (leave_id,))
+            
+            # 5. Finally delete the leave
+            cursor.execute("DELETE FROM leaves WHERE leave_id = %s", (leave_id,))
+            
+            connection.commit()
+            
+            # Log the action
+            AdminModel.log_action(
+                admin_id=session['admin_id'],
+                action_type='DELETE_LEAVE',
+                target_type='LEAVE',
+                target_id=leave_id,
+                details=f'Deleted leave #{leave_id} for student {leave["reg_number"]}',
+                request=request
+            )
+            
+            return jsonify({
+                'success': True,
+                'message': f'Leave #{leave_id} deleted successfully',
+                'deleted_id': leave_id
+            })
+            
+    except Exception as e:
+        connection.rollback()
+        print(f"Error deleting leave: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        connection.close()
+
+@app.route('/admin/export/leaves')
+@admin_required
+def admin_export_leaves():
+    """Export leaves data as CSV"""
+    try:
+        import csv
+        from io import StringIO
+        import pandas as pd
+        
+        # Get filters from query parameters
+        filters = {
+            'status': request.args.get('status'),
+            'leave_type': request.args.get('leave_type'),
+            'date_from': request.args.get('date_from'),
+            'date_to': request.args.get('date_to'),
+            'suspicious_only': request.args.get('suspicious_only') == 'true'
+        }
+        
+        # Get leaves data using existing method
+        leaves = AdminModel.get_all_leaves(filters)
+        
+        if not leaves:
+            return jsonify({'error': 'No data to export'}), 404
+        
+        # Convert to DataFrame for easy CSV export
+        df_data = []
+        for leave in leaves:
+            df_data.append({
+                'Leave ID': leave['leave_id'],
+                'Student Name': leave['student_name'],
+                'Registration Number': leave['reg_number'],
+                'Hostel Block': leave.get('hostel_block', 'N/A'),
+                'Room Number': leave.get('room_number', 'N/A'),
+                'Leave Type': leave['leave_type'].title(),
+                'From Date': leave['from_date'],
+                'To Date': leave['to_date'],
+                'From Time': leave['from_time'],
+                'To Time': leave['to_time'],
+                'Destination': leave['destination'],
+                'Reason': leave['reason'],
+                'Status': leave['status'].upper(),
+                'Proctor': leave['proctor_name'],
+                'Applied At': leave['applied_at'].strftime('%Y-%m-%d %H:%M:%S'),
+                'Approved At': leave['approved_at'].strftime('%Y-%m-%d %H:%M:%S') if leave['approved_at'] else '',
+                'Verified At': leave['verified_at'].strftime('%Y-%m-%d %H:%M:%S') if leave['verified_at'] else '',
+                'Parent Contacted': 'Yes' if leave.get('parent_contacted') else 'No',
+                'Suspicious Flag': 'Yes' if leave.get('suspicious_flag') else 'No',
+                'QR Token': leave.get('qr_token', ''),
+                'QR Expiry': leave['qr_expiry'].strftime('%Y-%m-%d %H:%M:%S') if leave['qr_expiry'] else ''
+            })
+        
+        df = pd.DataFrame(df_data)
+        
+        # Create CSV
+        csv_buffer = StringIO()
+        df.to_csv(csv_buffer, index=False)
+        csv_content = csv_buffer.getvalue()
+        csv_buffer.close()
+        
+        # Log the export action
+        AdminModel.log_action(
+            admin_id=session['admin_id'],
+            action_type='EXPORT_LEAVES',
+            target_type='SYSTEM',
+            target_id=None,
+            details=f'Exported {len(leaves)} leaves as CSV',
+            request=request
+        )
+        
+        # Return CSV file
+        from flask import Response
+        return Response(
+            csv_content,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=leaves_export_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            }
+        )
+        
+    except Exception as e:
+        print(f"Error exporting leaves: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("SYSTEM STARTED SUCCESSFULLY!")
