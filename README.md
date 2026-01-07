@@ -111,6 +111,7 @@ leave_management/
 ├── app.py                      # Main Flask application
 ├── models.py                   # Database models and business logic
 ├── database.py                 # Database connection handler
+├── db_migration.py             # Database migration and schema versioning utility
 ├── pdf_generator.py            # Permission slip PDF generator
 ├── init_db.py                  # Database initialization script
 ├── create_database.py          # Database creation utility
@@ -132,6 +133,10 @@ leave_management/
 │   ├── proctor_login.html
 │   ├── student_dashboard.html
 │   └── student_login.html
+├── static/
+    ├── download.jpg
+    ├── File_VIT_Bhopal_logo.png
+    └── images.jpg
 └── __pycache__/                # Python cache files
 ```
 
