@@ -227,3 +227,5 @@ For issues or questions, please contact the system administrator.
 ---
 
 **Note**: This system is designed specifically for VIT's leave management requirements and may need customization for other institutions.
+
+Aryan
