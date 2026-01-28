@@ -1665,6 +1665,114 @@ def admin_export_leaves():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+
+@app.route('/api/leave-details/<int:leave_id>')
+@login_required('student_id')
+def get_leave_details(leave_id):
+    """Get detailed information about a specific leave for student"""
+    try:
+        db = Database()
+        connection = db.get_connection()
+        
+        with connection.cursor() as cursor:
+            # Get leave details with student verification
+            cursor.execute("""
+                SELECT 
+                    l.*,
+                    s.name as student_name,
+                    s.reg_number,
+                    s.hostel_block,
+                    s.room_number,
+                    s.phone,
+                    s.parent_phone,
+                    p.name as proctor_name,
+                    p.employee_id as proctor_id,
+                    p.email as proctor_email,
+                    p.department as proctor_dept
+                FROM leaves l
+                JOIN students s ON l.student_reg = s.reg_number
+                JOIN proctors p ON l.proctor_id = p.employee_id
+                WHERE l.leave_id = %s AND l.student_reg = %s
+            """, (leave_id, session['student_id']))
+            
+            leave = cursor.fetchone()
+            
+            if not leave:
+                return jsonify({'error': 'Leave not found or access denied'}), 404
+            
+            # Get verification logs for this leave
+            cursor.execute("""
+                SELECT 
+                    vl.*,
+                    hs.name as supervisor_name
+                FROM verification_logs vl
+                LEFT JOIN hostel_supervisors hs ON vl.supervisor_id = hs.supervisor_id
+                WHERE vl.leave_id = %s
+                ORDER BY vl.verified_at DESC
+            """, (leave_id,))
+            
+            verification_logs = cursor.fetchall()
+            
+            # Format the response
+            def format_time(time_obj):
+                if isinstance(time_obj, time):
+                    return time_obj.strftime('%H:%M')
+                elif isinstance(time_obj, timedelta):
+                    total_seconds = int(time_obj.total_seconds())
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    return f"{hours:02d}:{minutes:02d}"
+                elif isinstance(time_obj, str):
+                    if ':' in time_obj:
+                        return time_obj.split('.')[0]
+                    return time_obj
+                else:
+                    return "00:00"
+            
+            def format_date(date_obj):
+                if hasattr(date_obj, 'strftime'):
+                    return date_obj.strftime('%Y-%m-%d')
+                elif isinstance(date_obj, str):
+                    return date_obj
+                else:
+                    return str(date_obj)
+            
+            response = {
+                'leave_id': leave['leave_id'],
+                'leave_type': leave.get('leave_type', 'regular'),
+                'status': leave.get('status', 'pending'),
+                'from_date': format_date(leave['from_date']),
+                'to_date': format_date(leave['to_date']),
+                'from_time': format_time(leave['from_time']),
+                'to_time': format_time(leave['to_time']),
+                'reason': leave.get('reason', 'No reason provided'),
+                'destination': leave.get('destination', 'Not specified'),
+                'parent_contacted': bool(leave.get('parent_contacted', False)),
+                'applied_at': str(leave['applied_at']) if leave.get('applied_at') else None,
+                'approved_at': str(leave['approved_at']) if leave.get('approved_at') else None,
+                'proctor_name': leave.get('proctor_name', 'Unknown'),
+                'qr_token': leave.get('qr_token'),
+                'qr_expiry': str(leave.get('qr_expiry')) if leave.get('qr_expiry') else None,
+                'verification_logs': [
+                    {
+                        'timestamp': str(log['verified_at']),
+                        'action': log['action'],
+                        'supervisor': log['supervisor_name'] or log['supervisor_id'],
+                        'notes': log['notes']
+                    }
+                    for log in verification_logs
+                ]
+            }
+            
+            return jsonify(response)
+            
+    except Exception as e:
+        print(f"Error fetching leave details: {e}")
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+    finally:
+        connection.close()
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("SYSTEM STARTED SUCCESSFULLY!")
