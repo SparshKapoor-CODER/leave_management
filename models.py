@@ -214,7 +214,7 @@ class HostelSupervisor:
             connection.close()
     
     @staticmethod
-    def verify_qr_token(qr_token, supervisor_id):
+    def verify_qr_token(qr_token, supervisor_id, supervisor_block=None):
         db = Database()
         connection = db.get_connection()
         try:
@@ -234,6 +234,12 @@ class HostelSupervisor:
                 
                 if not leave:
                     return None, "Invalid or expired QR code"
+                
+                # Additional security: Verify supervisor's block matches student's block
+                if supervisor_block:
+                    student_block = leave.get('hostel_block', '')
+                    if student_block.upper() != supervisor_block.upper():
+                        return None, f"Access denied! You can only verify students from Block {supervisor_block}. This student is from Block {student_block}."
                 
                 cursor.execute("""
                     INSERT INTO verification_logs 
