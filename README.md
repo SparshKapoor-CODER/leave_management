@@ -53,11 +53,7 @@ A comprehensive web-based leave management system for VIT (Vellore Institute of 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-<<<<<<< HEAD
-   cd Leave
-=======
    cd leave_management
->>>>>>> 2e63df1f0f450d9840f69fb32e58b7c42ce5e21c
    ```
 
 2. **Install dependencies**

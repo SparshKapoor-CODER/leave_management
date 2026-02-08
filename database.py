@@ -234,8 +234,4 @@ class Database:
             raise
         finally:
             if connection:
-<<<<<<< HEAD
                 connection.close()
-=======
-                connection.close()
->>>>>>> 2e63df1f0f450d9840f69fb32e58b7c42ce5e21c
