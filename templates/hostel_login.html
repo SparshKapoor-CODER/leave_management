@@ -47,19 +47,10 @@
                         </div>
                     </div>
                     
-                    <div class="mb-3">
-                        <label for="hostel_block" class="form-label required">Hostel Block</label>
-                        <select class="form-select" id="hostel_block" name="hostel_block" required>
-                            <option value="" selected disabled>Select hostel block</option>
-                            <option value="A">A Block</option>
-                            <option value="B">B Block</option>
-                            <option value="C">C Block</option>
-                            <option value="D">D Block</option>
-                            <option value="E">E Block</option>
-                            <option value="F">F Block</option>
-                            <option value="G">G Block</option>
-                            <option value="H">H Block</option>
-                        </select>
+                    <div class="alert alert-info alert-vit mb-4">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Note:</strong> You will be logged into the hostel block assigned to your account. 
+                        You can only verify students from your assigned block.
                     </div>
                     
                     <div class="d-grid gap-2 mb-4">
@@ -84,30 +75,30 @@
         <div class="card card-vit mt-4">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fas fa-cogs me-2"></i>System Requirements
+                    <i class="fas fa-shield-alt me-2"></i>Security Features
                 </h5>
                 <ul class="list-unstyled">
                     <li class="mb-2">
                         <i class="fas fa-check text-success me-2"></i>
-                        QR code scanner or webcam required
+                        Automatic block verification
                     </li>
                     <li class="mb-2">
                         <i class="fas fa-check text-success me-2"></i>
-                        Printer connected for permission slips
+                        Can only verify students from assigned block
                     </li>
                     <li class="mb-2">
                         <i class="fas fa-check text-success me-2"></i>
-                        Stable internet connection
+                        Cross-block verification logging
                     </li>
                     <li>
                         <i class="fas fa-check text-success me-2"></i>
-                        Latest browser version recommended
+                        Real-time activity monitoring
                     </li>
                 </ul>
                 
                 <div class="alert alert-warning alert-vit mt-3">
                     <i class="fas fa-exclamation-triangle me-2"></i>
-                    <strong>Important:</strong> Always verify student ID card along with QR code
+                    <strong>Security Policy:</strong> Attempting to verify students from other blocks will be logged and may result in account suspension.
                 </div>
             </div>
         </div>
@@ -130,10 +121,5 @@
             icon.classList.add('fa-eye');
         }
     });
-    
-    // Set today's date for reference
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('from_date').min = today;
-    document.getElementById('to_date').min = today;
 </script>
 {% endblock %}
