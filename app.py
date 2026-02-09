@@ -219,6 +219,15 @@ def hostel_login():
         
         supervisor = HostelSupervisor.login(supervisor_id, password)
         if supervisor:
+            # Get the block from the login form
+            submitted_block = request.form['hostel_block'].strip().upper()
+            
+            # Verify the submitted block matches supervisor's actual block
+            if submitted_block != supervisor['hostel_block'].upper():
+                flash(f'Access denied! Your assigned block is {supervisor["hostel_block"]}. You cannot login as Block {submitted_block}.', 'error')
+                return render_template('hostel_login.html', error='Block mismatch')
+            
+            # If blocks match, proceed with login
             session['supervisor_id'] = supervisor['supervisor_id']
             session['supervisor_name'] = supervisor['name']
             session['hostel_block'] = supervisor['hostel_block']
