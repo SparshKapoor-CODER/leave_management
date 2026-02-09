@@ -255,9 +255,28 @@ def hostel_verify():
         print(f"Verifying QR token: {qr_token}")
         
         try:
-            leave, message = HostelSupervisor.verify_qr_token(qr_token, session['supervisor_id'])
+            # Get supervisor's block from session
+            supervisor_block = session.get('hostel_block', '')
+            
+            leave, message = HostelSupervisor.verify_qr_token(
+                qr_token, 
+                session['supervisor_id'],
+                supervisor_block  # Pass supervisor's block for verification
+            )
             
             if leave:
+                # Additional verification: Check if student's block matches supervisor's block
+                student_block = leave.get('hostel_block', '')
+                
+                if student_block.upper() != supervisor_block.upper():
+                    error = f"Access denied! You can only verify students from Block {supervisor_block}. This student is from Block {student_block}."
+                    flash(error, 'error')
+                    return render_template('hostel_verify.html',
+                                         supervisor_name=session.get('supervisor_name', ''),
+                                         hostel_block=session.get('hostel_block', ''),
+                                         error=error)
+                
+                # Rest of the code remains the same...
                 def format_time(time_obj):
                     if isinstance(time_obj, time):
                         return time_obj.strftime('%H:%M')
@@ -417,10 +436,21 @@ def admin_leaves():
         'leave_type': request.args.get('leave_type'),
         'date_from': request.args.get('date_from'),
         'date_to': request.args.get('date_to'),
-        'suspicious_only': request.args.get('suspicious_only') == 'true'
+        'suspicious_only': request.args.get('suspicious_only') == 'true',
+        'cross_block': request.args.get('cross_block') == 'true'  # New filter
     }
     
     leaves = AdminModel.get_all_leaves(filters)
+    
+    # Check for cross-block verifications
+    if filters.get('cross_block'):
+        suspicious_leaves = []
+        for leave in leaves:
+            if leave.get('student_block') != leave.get('supervisor_block'):
+                leave['cross_block_warning'] = True
+                suspicious_leaves.append(leave)
+        leaves = suspicious_leaves
+    
     return render_template('admin_leaves.html',
                          leaves=leaves,
                          filters=filters,
