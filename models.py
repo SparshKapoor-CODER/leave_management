@@ -196,6 +196,25 @@ class Proctor:
 
 class HostelSupervisor:
     @staticmethod
+    def verify_supervisor_block(supervisor_id, block_to_check):
+        """Verify if supervisor is assigned to the given block"""
+        db = Database()
+        connection = db.get_connection()
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT hostel_block FROM hostel_supervisors WHERE supervisor_id = %s",
+                    (supervisor_id,)
+                )
+                supervisor = cursor.fetchone()
+                
+                if supervisor:
+                    return supervisor['hostel_block'].upper() == block_to_check.upper()
+                return False
+        finally:
+            connection.close()
+
+    @staticmethod
     def login(supervisor_id, password):
         db = Database()
         connection = db.get_connection()
