@@ -529,55 +529,55 @@
     </div>
 
     <!-- Admins Tab -->
-<div class="tab-pane fade" id="admins">
-    <div class="card card-vit">
-        <div class="card-body">
-            <h5 class="card-title mb-4">
-                <i class="fas fa-user-shield me-2"></i>All Admins
-            </h5>
-            <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
-                        <tr>
-                            <th>Admin ID</th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in users if user.type == 'admin' %}
-                        <tr>
-                            <td><code>{{ user.id }}</code></td>
-                            <td>{{ user.name }}</td>
-                            <td>{{ user.email if user.email else 'N/A' }}</td>
-                            <td><span class="badge bg-{{ 'danger' if user.role == 'super_admin' else 'secondary' }}">{{ user.role }}</span></td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="resetUserPassword('admin', '{{ user.id }}')">
-                                    <i class="fas fa-key"></i>
-                                </button>
-                                <button class="btn btn-sm btn-outline-info" onclick="editUser('admin', '{{ user.id }}')">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                {% if user.id != 'ADMIN001' %}
-                                <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('admin', '{{ user.id }}', '{{ user.name }}')">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="5" class="text-center text-muted">No admins found</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    <div class="tab-pane fade" id="admins">
+        <div class="card card-vit">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="fas fa-user-shield me-2"></i>All Admins
+                </h5>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Admin ID</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users if user.type == 'admin' %}
+                            <tr>
+                                <td><code>{{ user.id }}</code></td>
+                                <td>{{ user.name }}</td>
+                                <td>{{ user.email if user.email else 'N/A' }}</td>
+                                <td><span class="badge bg-{{ 'danger' if user.role == 'super_admin' else 'secondary' }}">{{ user.role }}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="resetUserPassword('admin', '{{ user.id }}')">
+                                        <i class="fas fa-key"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-info" onclick="editUser('admin', '{{ user.id }}')">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    {% if user.id != 'ADMIN001' %}
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deleteUser('admin', '{{ user.id }}', '{{ user.name }}')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center text-muted">No admins found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
-</div>
 </div>
 
 
