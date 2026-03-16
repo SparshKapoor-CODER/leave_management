@@ -220,6 +220,22 @@ class Database:
                     )
                 ''')
                 print("✓ Created 'leave_audit_log' table")
+
+                # Create blocked_ips table
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS blocked_ips (
+                        block_id INT AUTO_INCREMENT PRIMARY KEY,
+                        ip_address VARCHAR(45) NOT NULL UNIQUE,
+                        reason TEXT NOT NULL,
+                        blocked_by VARCHAR(20) NOT NULL,
+                        blocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        is_active BOOLEAN DEFAULT TRUE,
+                        unblocked_by VARCHAR(20),
+                        unblocked_at TIMESTAMP NULL,
+                        notes TEXT
+                    )
+                ''')
+                print("✓ Created 'blocked_ips' table")
                 
                 connection.commit()
                 print("\n" + "="*50)
