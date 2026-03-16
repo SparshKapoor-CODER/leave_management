@@ -82,6 +82,41 @@ def admin_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# ── IP BLOCKING ──────────────────────────────────────────────────────────────
+
+def get_client_ip():
+    """Get real client IP, respecting X-Forwarded-For proxy header."""
+    if request.headers.get('X-Forwarded-For'):
+        return request.headers.get('X-Forwarded-For').split(',')[0].strip()
+    return request.remote_addr
+
+def is_ip_blocked(ip_address):
+    """Return True if the given IP is actively blocked."""
+    try:
+        db = Database()
+        connection = db.get_connection()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "SELECT block_id FROM blocked_ips WHERE ip_address = %s AND is_active = TRUE",
+                (ip_address,)
+            )
+            return cursor.fetchone() is not None
+    except Exception:
+        return False
+    finally:
+        connection.close()
+
+@app.before_request
+def block_banned_ips():
+    """Reject every request coming from a blocked IP before it hits any route."""
+    # Always allow admin login so the admin isn't locked out themselves
+    if request.endpoint in ('admin_login', 'static'):
+        return None
+
+    ip = get_client_ip()
+    if is_ip_blocked(ip):
+        return render_template('blocked.html', ip=ip), 403
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -1833,6 +1868,189 @@ def get_leave_details(leave_id):
     finally:
         connection.close()
 
+# ── ADMIN IP BLOCKING ROUTES ─────────────────────────────────────────────────
+
+@app.route('/admin/ip-blocking')
+@admin_required
+def admin_ip_blocking():
+    """Show all blocked IPs."""
+    db = Database()
+    connection = db.get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT b.*, a.name as blocked_by_name,
+                       u.name as unblocked_by_name
+                FROM blocked_ips b
+                LEFT JOIN admins a ON b.blocked_by = a.admin_id
+                LEFT JOIN admins u ON b.unblocked_by = u.admin_id
+                ORDER BY b.blocked_at DESC
+            """)
+            blocked_ips = cursor.fetchall()
+
+            cursor.execute("""
+                SELECT ip_address, COUNT(*) as hit_count,
+                       MAX(created_at) as last_seen,
+                       GROUP_CONCAT(DISTINCT action_type ORDER BY created_at DESC SEPARATOR ', ') as actions
+                FROM admin_logs
+                WHERE ip_address IS NOT NULL AND ip_address != ''
+                GROUP BY ip_address
+                ORDER BY hit_count DESC
+                LIMIT 30
+            """)
+            recent_ips = cursor.fetchall()
+
+        return render_template('admin_ip_blocking.html',
+                               blocked_ips=blocked_ips,
+                               recent_ips=recent_ips,
+                               admin_name=session['admin_name'])
+    finally:
+        connection.close()
+
+
+@app.route('/admin/ip-blocking/block', methods=['POST'])
+@admin_required
+def admin_block_ip():
+    """Permanently block an IP address."""
+    ip_address = request.form.get('ip_address', '').strip()
+    reason     = request.form.get('reason', '').strip()
+    notes      = request.form.get('notes', '').strip()
+
+    if not ip_address or not reason:
+        flash('IP address and reason are required.', 'error')
+        return redirect(url_for('admin_ip_blocking'))
+
+    import re
+    if not re.match(r'^[\d\.\:a-fA-F]+$', ip_address):
+        flash('Invalid IP address format.', 'error')
+        return redirect(url_for('admin_ip_blocking'))
+
+    if ip_address == get_client_ip():
+        flash('You cannot block your own IP address.', 'error')
+        return redirect(url_for('admin_ip_blocking'))
+
+    db = Database()
+    connection = db.get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO blocked_ips (ip_address, reason, blocked_by, notes, is_active)
+                VALUES (%s, %s, %s, %s, TRUE)
+                ON DUPLICATE KEY UPDATE
+                    reason       = VALUES(reason),
+                    blocked_by   = VALUES(blocked_by),
+                    blocked_at   = CURRENT_TIMESTAMP,
+                    notes        = VALUES(notes),
+                    is_active    = TRUE,
+                    unblocked_by = NULL,
+                    unblocked_at = NULL
+            """, (ip_address, reason, session['admin_id'], notes))
+            connection.commit()
+
+        AdminModel.log_action(
+            admin_id=session['admin_id'],
+            action_type='BLOCK_IP',
+            target_type='SECURITY',
+            target_id=ip_address,
+            details=f'Blocked IP {ip_address}: {reason}',
+            request=request
+        )
+        flash(f'IP {ip_address} has been permanently blocked.', 'success')
+    except Exception as e:
+        flash(f'Error blocking IP: {str(e)}', 'error')
+        traceback.print_exc()
+    finally:
+        connection.close()
+
+    return redirect(url_for('admin_ip_blocking'))
+
+
+@app.route('/admin/ip-blocking/unblock/<int:block_id>', methods=['POST'])
+@admin_required
+def admin_unblock_ip(block_id):
+    """Unblock a previously blocked IP."""
+    db = Database()
+    connection = db.get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT ip_address FROM blocked_ips WHERE block_id = %s", (block_id,))
+            row = cursor.fetchone()
+            if not row:
+                flash('Block record not found.', 'error')
+                return redirect(url_for('admin_ip_blocking'))
+
+            ip_address = row['ip_address']
+            cursor.execute("""
+                UPDATE blocked_ips
+                SET is_active    = FALSE,
+                    unblocked_by = %s,
+                    unblocked_at = CURRENT_TIMESTAMP
+                WHERE block_id = %s
+            """, (session['admin_id'], block_id))
+            connection.commit()
+
+        AdminModel.log_action(
+            admin_id=session['admin_id'],
+            action_type='UNBLOCK_IP',
+            target_type='SECURITY',
+            target_id=ip_address,
+            details=f'Unblocked IP {ip_address}',
+            request=request
+        )
+        flash(f'IP {ip_address} has been unblocked.', 'success')
+    except Exception as e:
+        flash(f'Error unblocking IP: {str(e)}', 'error')
+    finally:
+        connection.close()
+
+    return redirect(url_for('admin_ip_blocking'))
+
+
+@app.route('/admin/ip-blocking/delete/<int:block_id>', methods=['POST'])
+@admin_required
+def admin_delete_ip_block(block_id):
+    """Permanently delete a block record."""
+    db = Database()
+    connection = db.get_connection()
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT ip_address FROM blocked_ips WHERE block_id = %s", (block_id,))
+            row = cursor.fetchone()
+            if not row:
+                flash('Block record not found.', 'error')
+                return redirect(url_for('admin_ip_blocking'))
+            ip_address = row['ip_address']
+            cursor.execute("DELETE FROM blocked_ips WHERE block_id = %s", (block_id,))
+            connection.commit()
+
+        AdminModel.log_action(
+            admin_id=session['admin_id'],
+            action_type='DELETE_IP_BLOCK',
+            target_type='SECURITY',
+            target_id=ip_address,
+            details=f'Deleted block record for IP {ip_address}',
+            request=request
+        )
+        flash(f'Block record for {ip_address} deleted.', 'info')
+    except Exception as e:
+        flash(f'Error deleting record: {str(e)}', 'error')
+    finally:
+        connection.close()
+
+    return redirect(url_for('admin_ip_blocking'))
+
+
+@app.route('/admin/ip-blocking/check')
+@admin_required
+def admin_check_ip():
+    """AJAX — check whether a given IP is currently blocked."""
+    ip = request.args.get('ip', '').strip()
+    if not ip:
+        return jsonify({'error': 'No IP provided'}), 400
+    blocked = is_ip_blocked(ip)
+    return jsonify({'ip': ip, 'blocked': blocked})
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("SYSTEM STARTED SUCCESSFULLY!")
@@ -1857,4 +2075,3 @@ if __name__ == '__main__':
     print("  Clear Old Logs: http://localhost:5000/admin/clear-old-logs")
     print("\n" + "="*60)
     app.run(debug=True, port=5000)
-
