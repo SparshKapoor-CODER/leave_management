@@ -2052,6 +2052,7 @@ def admin_check_ip():
 
 
 if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
     print("\n" + "="*60)
     print("SYSTEM STARTED SUCCESSFULLY!")
     print("="*60)
@@ -2074,4 +2075,4 @@ if __name__ == '__main__':
     print("  Test Log: http://localhost:5000/admin/test-log")
     print("  Clear Old Logs: http://localhost:5000/admin/clear-old-logs")
     print("\n" + "="*60)
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=port, debug=False)
