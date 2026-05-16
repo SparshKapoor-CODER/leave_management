@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: leave_management
+    runtime: python
+    runtimeVersion: 3.12.1
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:10000 app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.1
